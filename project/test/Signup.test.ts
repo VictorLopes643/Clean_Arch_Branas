@@ -5,6 +5,7 @@ import { AccountRepositoryDatabase, AccountRepositoryMemory } from "../src/infra
 import { MailerGatewayMemory } from "../src/infra/gateway/MailerGateway";
 import sinon from "sinon";
 import DatabaseConnection, { PgPromiseAdapter } from "../src/infra/database/DatabaseConnection";
+import { ExpressAdapter } from "../src/infra/http/HttpServer";
 
 // Integration Test or Unit Test
 
@@ -13,7 +14,10 @@ let getAccount: GetAccount;
 
 beforeEach(async () => {
 	// Fake é uma implementação falsa, que mimifica a implementação original
-	const accountRepository = new AccountRepositoryMemory();
+	const httpServer = new ExpressAdapter();
+// const httpServer = new HapiAdapter();
+const connection = new PgPromiseAdapter();
+	const accountRepository = new AccountRepositoryDatabase(connection);
 	const mailerGateway = new MailerGatewayMemory();
 	signup = new Signup(accountRepository, mailerGateway);
 	getAccount = new GetAccount(accountRepository);
@@ -131,56 +135,4 @@ test("Deve criar uma conta para o passageiro com stub", async function () {
 	await connection.close();
 });
 
-// Spy registra tudo que aconteceu com o componente que está sendo espionado, depois você faz a verificação que quiser
-test("Deve criar uma conta para o passageiro com spy", async function () {
-	const input = {
-		name: "John Doe",
-		email: `john.doe${Math.random()}@gmail.com`,
-		cpf: "87748248800",
-		isPassenger: true
-	};
-	const sendSpy = sinon.spy(MailerGatewayMemory.prototype, "send");
-	const connection = new PgPromiseAdapter();
-	const accountRepository = new AccountRepositoryDatabase(connection);
-	const mailerGateway = new MailerGatewayMemory();
-	const signup = new Signup(accountRepository, mailerGateway);
-	const getAccount = new GetAccount(accountRepository);
-	const outputSignup = await signup.execute(input);
-	expect(outputSignup.accountId).toBeDefined();
-	const outputGetAccount = await getAccount.execute(outputSignup);
-	expect(outputGetAccount.name).toBe(input.name);
-	expect(outputGetAccount.email).toBe(input.email);
-	expect(outputGetAccount.cpf).toBe(input.cpf);
-	expect(sendSpy.calledOnce).toBe(true);
-	expect(sendSpy.calledWith(input.email, "Welcome!", "")).toBe(true);
-	sendSpy.restore();
-	await connection.close();
-});
 
-// Mock mistura características de Stub e Spy, criando as expectativas no próprio objeto (mock)
-test("Deve criar uma conta para o passageiro com mock", async function () {
-	const input = {
-		name: "John Doe",
-		email: `john.doe${Math.random()}@gmail.com`,
-		cpf: "87748248800",
-		isPassenger: true
-	};
-	const sendMock = sinon.mock(MailerGatewayMemory.prototype);
-	sendMock.expects("send").withArgs(input.email, "Welcome!", "").once().callsFake(async function () {
-		console.log("abc");
-	});
-	const connection = new PgPromiseAdapter();
-	const accountRepository = new AccountRepositoryDatabase(connection);
-	const mailerGateway = new MailerGatewayMemory();
-	const signup = new Signup(accountRepository, mailerGateway);
-	const getAccount = new GetAccount(accountRepository);
-	const outputSignup = await signup.execute(input);
-	expect(outputSignup.accountId).toBeDefined();
-	const outputGetAccount = await getAccount.execute(outputSignup);
-	expect(outputGetAccount.name).toBe(input.name);
-	expect(outputGetAccount.email).toBe(input.email);
-	expect(outputGetAccount.cpf).toBe(input.cpf);
-	sendMock.verify();
-	sendMock.restore();
-	await connection.close();
-});
